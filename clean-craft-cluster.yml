@@ -1,0 +1,98 @@
+---
+- name: Purge Kafka KRaft Installation and Data
+  hosts: kafka
+  become: true
+  vars:
+    kafka_user: kafka
+    kafka_group: kafka
+    kafka_home: /opt/kafka
+    kafka_install_base: /opt
+    kafka_data_base: /var/lib/kafka
+    kafka_log_dir: /var/log/kafka
+
+  tasks:
+    - name: Stop and disable Kafka systemd service
+      ansible.builtin.systemd:
+        name: kafka
+        state: stopped
+        enabled: false
+      failed_when: false
+
+    - name: Remove Kafka systemd service unit file
+      ansible.builtin.file:
+        path: /etc/systemd/system/kafka.service
+        state: absent
+      notify: Reload Systemd
+
+    - name: Flush handlers to reload systemd immediately
+      ansible.builtin.meta: flush_handlers
+
+    - name: Remove cluster ID profile script
+      ansible.builtin.file:
+        path: /etc/profile.d/kafka-id.sh
+        state: absent
+
+    - name: Remove Kafka storage and data directory
+      ansible.builtin.file:
+        path: "{{ kafka_data_base }}"
+        state: absent
+
+    - name: Remove Kafka operational log directory
+      ansible.builtin.file:
+        path: "{{ kafka_log_dir }}"
+        state: absent
+
+    - name: Remove /opt/kafka symlink
+      ansible.builtin.file:
+        path: "{{ kafka_home }}"
+        state: absent
+
+    - name: Find Kafka installation directories in /opt
+      ansible.builtin.find:
+        paths: "{{ kafka_install_base }}"
+        file_type: directory
+        patterns: "kafka_*"
+      register: kafka_extracted_dirs
+
+    - name: Remove extracted Kafka directories in /opt
+      ansible.builtin.file:
+        path: "{{ item.path }}"
+        state: absent
+      loop: "{{ kafka_extracted_dirs.files }}"
+
+    - name: Remove downloaded archives in /tmp
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - /tmp/kafka_*.tgz
+        - /tmp/temurin-*.tar.gz
+
+    - name: Remove firewalld rules for Kafka ports
+      ansible.posix.firewalld:
+        port: "{{ item }}"
+        permanent: true
+        state: disabled
+        immediate: true
+      loop:
+        - 9092/tcp
+        - 9093/tcp
+      failed_when: false
+
+    - name: Remove kafka system user
+      ansible.builtin.user:
+        name: "{{ kafka_user }}"
+        state: absent
+        remove: true
+      failed_when: false
+
+    - name: Remove kafka system group
+      ansible.builtin.group:
+        name: "{{ kafka_group }}"
+        state: absent
+      failed_when: false
+
+  handlers:
+    - name: Reload Systemd
+      ansible.builtin.systemd:
+        daemon_reload: true
