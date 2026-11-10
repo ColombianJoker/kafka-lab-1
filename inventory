@@ -1,0 +1,7 @@
+[kafka]
+kafka1 ansible_host=192.168.25.221
+kafka2 ansible_host=192.168.25.103
+
+[producers]
+producer1 ansible_host=192.168.209.133
+producer2 ansible_host=192.168.209.134
