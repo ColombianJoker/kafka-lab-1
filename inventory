@@ -1,7 +1,16 @@
 [kafka]
-kafka1 ansible_host=192.168.25.221
-kafka2 ansible_host=192.168.25.103
+kafka1 ansible_host=192.168.25.221 node_id=1
+kafka2 ansible_host=192.168.25.103 node_id=2
+kafka3 ansible_host=192.168.25.104 node_id=3
+
+[kafka:vars]
+kafka_home=/opt/kafka
+kafka_log_dir=/var/lib/kafka/data
+controller_quorum_voters="1@192.168.25.221:9093,2@192.168.25.103:9093,3@192.168.25.104:9093"
 
 [producers]
 producer1 ansible_host=192.168.209.133
 producer2 ansible_host=192.168.209.134
+
+[producers:vars]
+kafka_bootstrap_servers="192.168.25.221:9092,192.168.25.103:9092,192.168.25.104:9092"

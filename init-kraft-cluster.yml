@@ -1,0 +1,173 @@
+---
+- name: Install and Initialize Kafka KRaft Cluster (Subscribed RHEL 10)
+  hosts: kafka
+  become: true
+  vars:
+    kafka_version: "3.7.0"
+    scala_version: "2.13"
+    kafka_distro: "kafka_{{ scala_version }}-{{ kafka_version }}"
+    kafka_url: "https://archive.apache.org/dist/kafka/{{ kafka_version }}/{{ kafka_distro }}.tgz"
+    kafka_install_base: /opt
+    kafka_home: /opt/kafka
+    kafka_data_dir: /var/lib/kafka/data
+    static_cluster_id: "4L6g3nShT-eMCtK--X86sw"
+    kafka_uid: 1000
+    kafka_gid: 1000
+
+  tasks:
+    - name: Install OpenJDK 17 and firewalld via DNF
+      ansible.builtin.dnf:
+        name:
+          - java-17-openjdk-headless
+          - firewalld
+        state: present
+
+    - name: Ensure firewalld is running
+      ansible.builtin.systemd:
+        name: firewalld
+        state: started
+        enabled: true
+
+    - name: Open Kafka client and controller ports in firewalld
+      ansible.posix.firewalld:
+        port: "{{ item }}"
+        permanent: true
+        state: enabled
+        immediate: true
+      loop:
+        - 9092/tcp
+        - 9093/tcp
+
+    - name: Ensure kafka group exists with GID 1000
+      ansible.builtin.group:
+        name: kafka
+        gid: "{{ kafka_gid }}"
+        state: present
+
+    - name: Ensure kafka user exists with UID 1000
+      ansible.builtin.user:
+        name: kafka
+        uid: "{{ kafka_uid }}"
+        group: kafka
+        shell: /usr/sbin/nologin
+        system: true
+        create_home: false
+
+    - name: Ensure kafka storage data directory exists
+      ansible.builtin.file:
+        state: directory
+        path: "{{ kafka_data_dir }}"
+        owner: "{{ kafka_uid }}"
+        group: "{{ kafka_gid }}"
+        mode: "0750"
+
+    - name: Set cluster ID environment variable
+      ansible.builtin.copy:
+        content: 'export LAB_CLUSTER_ID="{{ static_cluster_id }}"'
+        dest: /etc/profile.d/kafka-id.sh
+        mode: "0644"
+
+    - name: Check if Kafka archive is downloaded
+      ansible.builtin.stat:
+        path: "/tmp/{{ kafka_distro }}.tgz"
+      register: kafka_archive
+
+    - name: Download Kafka distribution
+      ansible.builtin.get_url:
+        url: "{{ kafka_url }}"
+        dest: "/tmp/{{ kafka_distro }}.tgz"
+        mode: "0644"
+      when: not kafka_archive.stat.exists
+
+    - name: Extract Kafka archive
+      ansible.builtin.unarchive:
+        src: "/tmp/{{ kafka_distro }}.tgz"
+        dest: "{{ kafka_install_base }}"
+        remote_src: true
+        creates: "{{ kafka_install_base }}/{{ kafka_distro }}"
+        owner: "{{ kafka_uid }}"
+        group: "{{ kafka_gid }}"
+
+    - name: Create /opt/kafka symlink
+      ansible.builtin.file:
+        src: "{{ kafka_install_base }}/{{ kafka_distro }}"
+        dest: "{{ kafka_home }}"
+        state: link
+        owner: "{{ kafka_uid }}"
+        group: "{{ kafka_gid }}"
+
+    - name: Ensure Kafka log directory exists
+      ansible.builtin.file:
+        path: /var/log/kafka
+        state: directory
+        owner: "{{ kafka_uid }}"
+        group: "{{ kafka_gid }}"
+        mode: "0755"
+
+    - name: Deploy server.properties
+      ansible.builtin.template:
+        src: templates/server.properties.j2
+        dest: "{{ kafka_home }}/config/kraft/server.properties"
+        owner: "{{ kafka_uid }}"
+        group: "{{ kafka_gid }}"
+        mode: "0640"
+      notify: Restart Kafka
+
+    - name: Check if storage is already formatted
+      ansible.builtin.stat:
+        path: "{{ kafka_data_dir }}/meta.properties"
+      register: meta_properties_file
+
+    - name: Format Kafka Storage Directory with Shared Cluster ID
+      ansible.builtin.command: >
+        {{ kafka_home }}/bin/kafka-storage.sh format
+        -t {{ static_cluster_id }}
+        -c {{ kafka_home }}/config/kraft/server.properties
+      become_user: kafka
+      when: not meta_properties_file.stat.exists
+      register: format_output
+      changed_when: "'Formatting' in format_output.stdout"
+
+    - name: Deploy systemd service unit
+      ansible.builtin.copy:
+        dest: /etc/systemd/system/kafka.service
+        mode: "0644"
+        content: |
+          [Unit]
+          Description=Apache Kafka Distributed Message Broker (KRaft Mode)
+          Documentation=https://kafka.apache.org/documentation/
+          After=network.target
+
+          [Service]
+          Type=simple
+          User=kafka
+          Group=kafka
+          Environment="JAVA_HOME=/usr/lib/jvm/jre-17-openjdk"
+          Environment="LOG_DIR=/var/log/kafka"
+          ExecStart={{ kafka_home }}/bin/kafka-server-start.sh {{ kafka_home }}/config/kraft/server.properties
+          ExecStop={{ kafka_home }}/bin/kafka-server-stop.sh
+          Restart=on-failure
+          RestartSec=10s
+          LimitNOFILE=65536
+
+          [Install]
+          WantedBy=multi-user.target
+      notify:
+        - Reload Systemd
+        - Restart Kafka
+
+    - name: Ensure Kafka service is started and enabled
+      ansible.builtin.systemd:
+        name: kafka
+        state: started
+        enabled: true
+
+  handlers:
+    - name: Reload Systemd
+      ansible.builtin.systemd:
+        daemon_reload: true
+
+    - name: Restart Kafka
+      ansible.builtin.systemd:
+        name: kafka
+        state: restarted
