@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Node identity dynamically injected from Ansible
+NODE_ID="{{ node_id | default(inventory_hostname) }}"
+NODE_NAME="{{ inventory_hostname }}"
+
+# Backup destination with fallback
+DEF_DEST="${KAFKA_BACKUP_DEST:-/mnt/Public}"
+BACKUP_DEST="${DEF_DEST}/${NODE_NAME}/$(date +%Y%m%d_%H%M%S)"
+mkdir -p "${BACKUP_DEST}"
+
+# Step 1: Stop the Kafka service to flush page cache, checkpoint files, and log segments
+echo "Stopping Kafka on ${NODE_NAME}..."
+sudo systemctl stop kafka.service
+
+# Step 2: Archive log segments, metadata, and checkpoints (excluding file locks)
+echo "Archiving storage directory..."
+tar -czvf "${BACKUP_DEST}/kafka-broker-${NODE_NAME}-storage.tar.gz" \
+    --exclude="lost+found" \
+    --exclude="*.lock" \
+    --exclude=".lock" \
+    -C /var/lib/kafka data
+
+# Step 3: Resume Kafka broker operations
+echo "Restarting Kafka on ${NODE_NAME}..."
+sudo systemctl start kafka.service
+
+logger -t KAFKA_BACKUP "Node ${NODE_NAME} (ID: ${NODE_ID}) storage successfully archived to ${BACKUP_DEST}"
+echo "Backup completed successfully at ${BACKUP_DEST}"
