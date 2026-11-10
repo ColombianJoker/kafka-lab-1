@@ -1,0 +1,18 @@
+process.roles=broker,controller
+node.id={{ node_id }}
+controller.quorum.voters=1@192.168.25.221:9093,2@192.168.25.103:9093,3@192.168.25.104:9093
+
+# Network listeners
+listeners=PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093
+advertised.listeners=PLAINTEXT://{{ ansible_host }}:9092
+controller.listener.names=CONTROLLER
+inter.broker.listener.name=PLAINTEXT
+
+# Storage paths
+log.dirs={{ kafka_data_dir }}
+
+# Quorum & Replication Defaults
+num.partitions=3
+default.replication.factor=3
+min.insync.replicas=2
+log.retention.hours=168
