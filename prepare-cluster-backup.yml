@@ -19,3 +19,8 @@
         fstype: nfs
         opts: "soft,bg,intr,noatime"
         state: mounted
+    - name: Ensure backup script is in /usr/local/bin
+      ansible.builtin.template:
+        src: full-broker-backup.sh.j2
+        dest: /usr/local/bin/full-brocker-backup.sh
+        mode: "u=rwx,go=rx"
