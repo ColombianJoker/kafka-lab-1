@@ -1,5 +1,31 @@
 # Sample commands
 
+## Synopsis
+
+As planed, there will be three **kafka** nodes, `server1` (**kafka1** or `192.168.25.221`), `server2` (**kafka2** or `192.168.25.103`), and `server3` (**kafka3** or `192.168.25.104`). I used different names to show/demo the ansible nomenclature. I have two x86-64 physical servers (`server1` and `server2`) and one virtual aarch64 VM (`server3`) running on VMware Fusion on MacOS 15. That demos the possibility of use of mixed architectures on Kafka clusters. There will be two producers, these will be containers running on another VM on Fusion on MacOS. There will be two consumers, these will be containers running on QNAP Container Station.
+
+### Machines
+
+```sh
+[0 e@Gunther:~/Dropbox/Documents/Code/Kafka/kafka-lab-1]
+▶︎ ansible-inventory --graph
+@all:
+  |--@ungrouped:
+  |--@kafka:
+  |  |--kafka1
+  |  |--kafka2
+  |  |--kafka3
+  |--@producers:
+  |  |--producer1
+  |  |--producer2
+[0 e@Gunther:~/Dropbox/Documents/Code/Kafka/kafka-lab-1]
+▶︎
+```
+
+## Installation
+
+The full kafka nodes will be done using ansible, with the `init-kraft-cluster.yml` playbook. Note the playbook has a _fixed_ ID that must be changed to be reused.
+
 ```sh
 [0 e@Gunther:~/Dropbox/Documents/Code/Kafka/kafka-lab-1]
 ▶︎ ansible-playbook init-kraft-cluster.yml
@@ -108,7 +134,7 @@ kafka3                     : ok=15   changed=2    unreachable=0    failed=0    s
 ▶︎
 ```
 
-# Active?
+# Validation
 
 ## Are these active?
 
@@ -1351,7 +1377,7 @@ kafka3 | CHANGED => {
 
 ### Verify again
 
-Cluster normalize and rebalance
+Cluster normalize and rebalance automatically.
 
 ```sh
 [0 e@Gunther:~/Dropbox/Documents/Code/Kafka/kafka-lab-1]
@@ -1443,6 +1469,8 @@ echo "Backup completed successfully at ${BACKUP_DEST}"
 
 ### Preparation with the playbook
 
+The preparation includes creating a mounting point on each kafka nodes, validating the required software packages are present (and adding them if not), mounting the NFS resource, and copying the backup script were useable.
+
 ```sh
 [0 e@Gunther:~/Dropbox/Documents/Code/Kafka/kafka-lab-1]
 ▶︎ ansible-playbook prepare-cluster-backup.yml
@@ -1489,7 +1517,7 @@ kafka3                     : ok=5    changed=0    unreachable=0    failed=0    s
 
 ## Run the backups
 
-Use ansible to try to parallelize the backups
+Use ansible to try to parallelize the backups:
 
 ```sh
 [0 e@Gunther:~/Dropbox/Documents/Code/Kafka/kafka-lab-1]
@@ -2610,6 +2638,8 @@ Backup completed successfully at /mnt/Public/kafka2/20261110_113513
 ▶︎
 ```
 
+Full successful execution of the backup process directed by ansible.
+
 ### Check backup file existence
 
 ```sh
@@ -2632,6 +2662,7 @@ drwx------ - e 10 Nov 11:37  20261110_113807
 ▶︎
 ```
 
+All expected files are present. Note (by the name) all the backups were started at the same time.
 ---
 
 (c) Ramón Barrios Láscar, 2026
