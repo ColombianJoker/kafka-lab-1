@@ -1,0 +1,21 @@
+---
+- name: Prepare backup NFS space on nodes
+  hosts: kafka
+  become: true
+  tasks:
+    - name: Ensure NFS client is installed
+      ansible.builtin.dnf:
+        name: nfs-utils
+        state: present
+    - name: Ensure NFS mount directory is present
+      ansible.builtin.file:
+        state: directory
+        mode: "a=rwx,g+s,+t"
+        path: /mnt/Public
+    - name: Ensure NFS mount is ready
+      ansible.posix.mount:
+        src: "192.168.25.15:/Public"
+        path: /mnt/Public
+        fstype: nfs
+        opts: "soft,bg,intr,noatime"
+        state: mounted
