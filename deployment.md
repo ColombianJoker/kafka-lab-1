@@ -1,9 +1,13 @@
-Cluster Infrastructure Deployment on RHEL 10 with Podman Quadlets
+# Cluster Infrastructure Deployment on RHEL 10 with Podman Quadlets
+
 Red Hat Enterprise Linux 10 integrates container execution directly into **systemd** using Podman Quadlets. Quadlets replace brittle shell startup scripts by translating declarative `.container` files into managed systemd service units during systemctl daemon-reload.
+
 ### Storage Preparation and SELinux Enforcement
+
 RHEL 10 enforces Mandatory Access Control via SELinux. When bind-mounting host directories into Kafka containers to store partition logs and metadata segments, the underlying directories must be labeled with the container storage context (container_file_t). Appending the :Z flag to the volume definition informs Podman to configure an unshared private SELinux label on the host path.
 
 On **Physical Host 1** (192.168.1.11 / kafka1.lab.internal):
+
 ```bash
 sudo mkdir -p /var/lib/kafka/data
 sudo chown -R 1000:1000 /var/lib/kafka/data
@@ -11,6 +15,7 @@ sudo chmod -R 750 /var/lib/kafka/data
 ```
 
 On **Physical Host 2** (192.168.1.12 / kafka2.lab.internal):
+
 ```bash
 sudo mkdir -p /var/lib/kafka/data
 sudo chown -R 1000:1000 /var/lib/kafka/data
@@ -18,15 +23,21 @@ sudo chmod -R 750 /var/lib/kafka/data
 ```
 
 ### Static Storage Formatting and Cluster ID Generation
+
 All KRaft nodes in a cluster must share an identical, base64-encoded 16-byte UUID `cluster.id` to establish communication. Generating this UUID beforehand guarantees deterministic initialization across both physical hosts without relying on dynamic cluster formatting tools:
+
 ```bash
 export LAB_CLUSTER_ID="4L6g3nShT-eMCtK--X86sw"
 ```
 
 ### Quadlet Unit Declarations
+
 On RHEL 10, cluster container units are managed system-wide by placing files in `/etc/containers/systemd/`.
+
 #### Node 1 Specification
+
 Create `/etc/containers/systemd/kafka-broker.container `on **Physical Host 1**:
+
 ```toml
 [Unit]
 Description=Apache Kafka KRaft Broker and Controller Node 1
@@ -70,8 +81,10 @@ WantedBy=multi-user.target
 ```
 
 #### Node 2 Specification
+
 Create `/etc/containers/systemd/kafka-broker.container` on **Physical Host 2**:
 Ini, TOML
+
 ```toml
 [Unit]
 Description=Apache Kafka KRaft Broker and Controller Node 2
@@ -115,13 +128,16 @@ WantedBy=multi-user.target
 ```
 
 ### Cluster Service Initialization
+
 With the declarative Quadlet units placed in the systemd library directory, the generator must be executed to construct active service units:
+
 ```bash
 sudo systemctl daemon-reload
 sudo systemctl enable --now kafka-broker.service
 ```
 
 Verification of daemon startup and KRaft communication is conducted using standard systemd utilities:
+
 ```bash
 systemctl status kafka-broker.service
 journalctl -u kafka-broker.service -f
