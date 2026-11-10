@@ -1,5 +1,5 @@
 ---
-- name: Install and Initialize Kafka KRaft Cluster (Subscribed RHEL 10)
+- name: Install and Initialize Kafka KRaft Cluster on RHEL 10
   hosts: kafka
   become: true
   vars:
@@ -11,14 +11,14 @@
     kafka_home: /opt/kafka
     kafka_data_dir: /var/lib/kafka/data
     static_cluster_id: "4L6g3nShT-eMCtK--X86sw"
-    kafka_uid: 1000
-    kafka_gid: 1000
+    kafka_user: kafka
+    kafka_group: kafka
 
   tasks:
-    - name: Install OpenJDK 17 and firewalld via DNF
+    - name: Install OpenJDK 21 headless and firewalld
       ansible.builtin.dnf:
         name:
-          - java-17-openjdk-headless
+          - java-21-openjdk-headless
           - firewalld
         state: present
 
@@ -28,7 +28,7 @@
         state: started
         enabled: true
 
-    - name: Open Kafka client and controller ports in firewalld
+    - name: Open Kafka ports in firewalld
       ansible.posix.firewalld:
         port: "{{ item }}"
         permanent: true
@@ -38,27 +38,27 @@
         - 9092/tcp
         - 9093/tcp
 
-    - name: Ensure kafka group exists with GID 1000
+    - name: Ensure kafka system group exists
       ansible.builtin.group:
-        name: kafka
-        gid: "{{ kafka_gid }}"
+        name: "{{ kafka_group }}"
+        system: true
         state: present
 
-    - name: Ensure kafka user exists with UID 1000
+    - name: Ensure kafka system user exists
       ansible.builtin.user:
-        name: kafka
-        uid: "{{ kafka_uid }}"
-        group: kafka
+        name: "{{ kafka_user }}"
+        group: "{{ kafka_group }}"
         shell: /usr/sbin/nologin
         system: true
         create_home: false
 
-    - name: Ensure kafka storage data directory exists
+    - name: Ensure kafka data storage directory exists and has correct ownership
       ansible.builtin.file:
         state: directory
         path: "{{ kafka_data_dir }}"
-        owner: "{{ kafka_uid }}"
-        group: "{{ kafka_gid }}"
+        owner: "{{ kafka_user }}"
+        group: "{{ kafka_group }}"
+        recurse: true
         mode: "0750"
 
     - name: Set cluster ID environment variable
@@ -67,7 +67,7 @@
         dest: /etc/profile.d/kafka-id.sh
         mode: "0644"
 
-    - name: Check if Kafka archive is downloaded
+    - name: Check if Kafka archive is already downloaded
       ansible.builtin.stat:
         path: "/tmp/{{ kafka_distro }}.tgz"
       register: kafka_archive
@@ -79,37 +79,37 @@
         mode: "0644"
       when: not kafka_archive.stat.exists
 
-    - name: Extract Kafka archive
+    - name: Extract Kafka archive to /opt
       ansible.builtin.unarchive:
         src: "/tmp/{{ kafka_distro }}.tgz"
         dest: "{{ kafka_install_base }}"
         remote_src: true
         creates: "{{ kafka_install_base }}/{{ kafka_distro }}"
-        owner: "{{ kafka_uid }}"
-        group: "{{ kafka_gid }}"
+        owner: "{{ kafka_user }}"
+        group: "{{ kafka_group }}"
 
     - name: Create /opt/kafka symlink
       ansible.builtin.file:
         src: "{{ kafka_install_base }}/{{ kafka_distro }}"
         dest: "{{ kafka_home }}"
         state: link
-        owner: "{{ kafka_uid }}"
-        group: "{{ kafka_gid }}"
+        owner: "{{ kafka_user }}"
+        group: "{{ kafka_group }}"
 
-    - name: Ensure Kafka log directory exists
+    - name: Ensure log directory exists
       ansible.builtin.file:
         path: /var/log/kafka
         state: directory
-        owner: "{{ kafka_uid }}"
-        group: "{{ kafka_gid }}"
+        owner: "{{ kafka_user }}"
+        group: "{{ kafka_group }}"
         mode: "0755"
 
     - name: Deploy server.properties
       ansible.builtin.template:
         src: templates/server.properties.j2
         dest: "{{ kafka_home }}/config/kraft/server.properties"
-        owner: "{{ kafka_uid }}"
-        group: "{{ kafka_gid }}"
+        owner: "{{ kafka_user }}"
+        group: "{{ kafka_group }}"
         mode: "0640"
       notify: Restart Kafka
 
@@ -123,7 +123,9 @@
         {{ kafka_home }}/bin/kafka-storage.sh format
         -t {{ static_cluster_id }}
         -c {{ kafka_home }}/config/kraft/server.properties
-      become_user: kafka
+      environment:
+        JAVA_HOME: /etc/alternatives/jre
+      become_user: "{{ kafka_user }}"
       when: not meta_properties_file.stat.exists
       register: format_output
       changed_when: "'Formatting' in format_output.stdout"
@@ -142,7 +144,7 @@
           Type=simple
           User=kafka
           Group=kafka
-          Environment="JAVA_HOME=/usr/lib/jvm/jre-17-openjdk"
+          Environment="JAVA_HOME=/etc/alternatives/jre"
           Environment="LOG_DIR=/var/log/kafka"
           ExecStart={{ kafka_home }}/bin/kafka-server-start.sh {{ kafka_home }}/config/kraft/server.properties
           ExecStop={{ kafka_home }}/bin/kafka-server-stop.sh
