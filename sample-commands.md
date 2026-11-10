@@ -487,7 +487,28 @@ Nov 10 10:01:36 producer1.local kafka-producer-beta[3730]: 2026-11-10 15:01:36,7
 ### Follow a producer to see the effect
 
 ```sh
-sudo journalctl -u kafka-producer@alpha.service -u kafka-producer@beta.service -f -n 20
+[e@producer1 ~]$ sudo journalctl -u kafka-producer@alpha.service -u kafka-producer@beta.service -n 20
+Nov 10 11:38:11 producer1.local kafka-producer-beta[3730]: %3|1794328691.256|FAIL|producer-beta#p>
+Nov 10 11:38:11 producer1.local kafka-producer-beta[3730]: %3|1794328691.672|FAIL|producer-beta#p>
+Nov 10 11:38:11 producer1.local kafka-producer-alpha[3688]: %3|1794328691.672|FAIL|producer-alpha>
+Nov 10 11:38:11 producer1.local kafka-producer-beta[3730]: %3|1794328691.722|FAIL|producer-beta#p>
+Nov 10 11:38:11 producer1.local kafka-producer-alpha[3688]: %3|1794328691.724|FAIL|producer-alpha>
+Nov 10 11:38:12 producer1.local kafka-producer-beta[3730]: %3|1794328692.257|FAIL|producer-beta#p>
+Nov 10 11:38:12 producer1.local kafka-producer-beta[3730]: %3|1794328692.669|FAIL|producer-beta#p>
+Nov 10 11:38:12 producer1.local kafka-producer-alpha[3688]: %3|1794328692.671|FAIL|producer-alpha>
+Nov 10 11:38:12 producer1.local kafka-producer-alpha[3688]: %3|1794328692.721|FAIL|producer-alpha>
+Nov 10 11:38:12 producer1.local kafka-producer-beta[3730]: %3|1794328692.723|FAIL|producer-beta#p>
+Nov 10 11:38:13 producer1.local kafka-producer-beta[3730]: %3|1794328693.258|FAIL|producer-beta#p>
+Nov 10 11:38:13 producer1.local kafka-producer-alpha[3688]: %3|1794328693.673|FAIL|producer-alpha>
+Nov 10 11:38:17 producer1.local kafka-producer-beta[3730]: %4|1794328697.312|METADATAUPDATE|produ>
+Nov 10 11:38:17 producer1.local kafka-producer-beta[3730]: %4|1794328697.314|METADATAUPDATE|produ>
+Nov 10 11:38:17 producer1.local kafka-producer-beta[3730]: %4|1794328697.316|METADATAUPDATE|produ>
+Nov 10 11:38:17 producer1.local kafka-producer-beta[3730]: %4|1794328697.433|METADATAUPDATE|produ>
+Nov 10 11:38:17 producer1.local kafka-producer-beta[3730]: %4|1794328697.434|METADATAUPDATE|produ>
+Nov 10 11:38:17 producer1.local kafka-producer-beta[3730]: %4|1794328697.436|METADATAUPDATE|produ>
+Nov 10 11:38:17 producer1.local kafka-producer-beta[3730]: %4|1794328697.546|METADATAUPDATE|produ>
+Nov 10 11:38:17 producer1.local kafka-producer-beta[3730]: %4|1794328697.550|METADATAUPDATE|produ>
+[e@producer1 ~]$
 ```
 
 ### Pushed info validation
