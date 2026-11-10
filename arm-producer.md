@@ -1,10 +1,15 @@
 # ARM64 Producer Specification and Deployment
 
 The producer service runs within an ARM64 RHEL 10 virtual machine hosted by VMware Fusion on macOS. To test multi-source data ingestion, two independent container instances execute identical application logic while using separate identifiers (`producer-alpha` and `producer-bravo`).
+
 ### Client Library Selection
+
 The producer is built with `confluent-kafka`, which wraps the high-performance C library `librdkafka`. Unlike pure Python implementations, `librdkafka` handles memory management natively, provides asynchronous batching optimizations (`linger.ms`, `batch.num.messages`), and supplies pre-compiled manylinux binary wheels for 64-bit ARM architectures (aarch64).
+
 ### Ingestion Source Code (`producer.py`)
+
 Save the following Python script as `/opt/kafka-lab/producer/producer.py`:
+
 ```python
 import json
 import logging
@@ -107,9 +112,10 @@ def main():
 
 if __name__ == "__main__":
     main()
-```	
+```
 
 ### Container Packaging (Dockerfile)
+
 Create `/opt/kafka-lab/producer/Dockerfile`:
 
 ```dockerfile
@@ -129,12 +135,14 @@ CMD ["python3", "/app/producer.py"]
 ```
 
 Build the native ARM64 image using Podman:
+
 ```bash
 
 podman build -t localhost/kafka-lab-producer:latest /opt/kafka-lab/producer/
 ```
 
 ### Templated Systemd Quadlet Deployment
+
 Using systemd template specifiers (`%i`), a single Quadlet definition automates deploying and managing both `producer-alpha` and `producer-bravo`containers.
 Create `/etc/containers/systemd/kafka-producer@.container` on the ARM64 RHEL 10 VM:
 
@@ -148,7 +156,7 @@ Wants=network-online.target
 Image=localhost/kafka-lab-producer:latest
 ContainerName=kafka-producer-%i
 Environment=PRODUCER_ID=producer-%i
-Environment=BOOTSTRAP_SERVERS=kafka1.lab.internal:9092,kafka2.lab.internal:9092
+Environment=BOOTSTRAP_SERVERS=192.168.25.221:9092,192.168.25.103:9092,192.168.25.104:9092
 Environment=TARGET_TOPIC=lab-telemetry
 Environment=MAX_SMALL_SLEEP=0.5
 
@@ -161,6 +169,7 @@ WantedBy=multi-user.target
 ```
 
 Reload systemd and start both producer instances:
+
 ```bash
 sudo systemctl daemon-reload
 sudo systemctl enable --now kafka-producer@alpha.service
